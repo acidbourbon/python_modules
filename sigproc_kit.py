@@ -87,25 +87,49 @@ def shift_time(data_x,data_y,tdiff):
   return (data_x, shift_vector(data_y,tdiff_samples))
 
 
+def resize_vector( vector, target_size):
+    if ( len(vector) < target_size ):
+      return np.pad( vector,(0,target_size-len(vector)), 'constant', constant_values=(0) ) ## pad with zeros to desired length
+    elif ( len(vector) > target_size ):
+      return vector[0:target_size] ## cut away if too long
+    else:
+      return vector
+
+
 def fft_convolve(x,time_vec_list,**kwargs):
+
+
   delta_t = x[1]-x[0]
   
-  ## adds half the sample width at the back, so signal components at the right end of the sample have no effect on
+  time_backshift = float(kwargs.get("time_backshift",0))
+  time_backshift_samples = int(time_backshift/delta_t)
+  
+  ## adds 20% of the sample width at the back, so signal components at the right end of the sample have no effect
   ## on the left side, remember, that the fft gives us a circular convolution
-  padding = kwargs.get("padding",0.5) ## by default, pad 50 % of the sample width at the back
+  padding = kwargs.get("padding",0.2) ## by default, pad 20 % of the sample width at the back
   samples = len(time_vec_list[0])
-  pad_samples = int(padding*samples)
-  pad_vector = np.zeros(pad_samples)
+  pad_samples = int((1+padding)*samples)
   
   freq_vec = None
   for time_vec in time_vec_list:
-    if freq_vec is None:
-      freq_vec = np.fft.rfft(np.concatenate((time_vec,pad_vector)))
-    else:
-      freq_vec = freq_vec * np.fft.rfft(np.concatenate((time_vec,pad_vector)) * delta_t)
-  
-  return np.fft.irfft(freq_vec)[0:samples]
+    
+    if ( len(time_vec) < pad_samples ):
+      time_vec = np.pad( time_vec,(0,pad_samples-len(time_vec)), 'constant', constant_values=(0) ) ## pad with zeros to desired length
+    elif ( len(time_vec) > pad_samples ):
+      time_vec = time_vec[0:pad_samples] ## cut away if too long
       
+    if freq_vec is None:
+      freq_vec = np.fft.rfft( time_vec )
+    else:
+      freq_vec = freq_vec * np.fft.rfft( time_vec  * delta_t)
+
+
+  
+  return np.fft.irfft(freq_vec)[time_backshift_samples:(time_backshift_samples+samples)]
+
+
+
+
 
 def write_csv(filename,data_x,data_y):
   with open(filename,"w") as f:
